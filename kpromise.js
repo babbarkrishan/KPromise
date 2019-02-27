@@ -2,118 +2,131 @@ const PENDING = 1
 const FULFILLED = 2
 const REJECTED = 3
 
-const callLater = (fn) => setTimeout(fn, 0)
-
 module.exports = class KPromise {
-	
 	constructor(executor) {
-		console.log("KPromise Constructor");
 		if (typeof executor !== 'function') {
 			throw new Error('Executor must be a function');
 		}
-		this._state = PENDING;
-		this._value = undefined;
-		this._thenners = [];
 		
-		this._resolve = this._resolve.bind(this);
-		this._reject = this._reject.bind(this);
+		this.state = PENDING;
+		this.value = undefined;
+		this.consumers = [];
 		
-		executor(this._resolve, this._reject);
-	}
-	
-	_resolve(result) {
-		try {
-			if (this._state === PENDING) {
-				this._state = FULFILLED;
-				this._value = result;
-				while (this._thenners.length > 0) {
-					this._handleThenner(this._thenners.pop())
-				}
-			}
-		}
-		catch(ex) {
-			this._reject(ex);
-		}
-	}
-	
-	_reject(reason) {
-		try {
-			if (this._state === PENDING) {
-				this._state = REJECTED;
-				this._value = reason;
-				while (this._thenners.length > 0) {
-					this._handleThenner(this._thenners.pop())
-				}
-			}
-		}
-		catch(ex) {
-			this._reject(ex);
-		}
-	}
-	
-	_handleThenner(thenner) {
-		if (this._state === FULFILLED) {
-			thenner.onResolved && callLater(() => thenner.onResolved(this._value))
-		} else if (this._state === REJECTED) {
-			thenner.onRejected && callLater(() => thenner.onRejected(this._value))
-		} else {
-			this._thenners.push(thenner)
-		}
-	}	
-	
-	then(onResolved, onRejected) {
-		console.log("KPromise then");
-		return new Promise((resolve, reject) => {
-		  const thenner = {
-			onResolved: (value) => {
-			  let nextValue = value
-			  if (onResolved) {
-				try {
-				  nextValue = onResolved(value)
-				  if (nextValue && nextValue.then) {
-					return nextValue.then(resolve, reject)
-				  }
-				} catch (err) {
-				  return reject(err)
-				}
-			  }
-			  resolve(nextValue)
-			},
-			onRejected: (value) =>  {
-			  let nextValue = value
-			  if (onRejected) {
-				try {
-				  nextValue = onRejected(value)
-				  if (nextValue && nextValue.then) {
-					return nextValue.then(resolve, reject)
-				  }
-				} catch (err) {
-				  return reject(err)
-				}
-			  }
-			  resolve(nextValue)
-			}
-		  }
-		  this._handleThenner(thenner)
-		})
+		executor(this.resolve.bind(this), this.reject.bind(this));
+		
+		this.promise = Object.create(KPromise.prototype, {
+			then: { value: this.then.bind(this) }
+		});
 	}
 	
 	static deferred() {
-		return new Promise((resolve, reject) => reject(value))
-	}
-	done(onResolved) {
-		return this.then(onResolved)
+		var promiseObj = new KPromise(function () {});
+		return promiseObj;
 	}
 
-	catch(onRejected) {
-		return this.then(undefined, onRejected)
+	fulfill(value) {		
+		if (this.state != PENDING) return;
+		this.state = FULFILLED;
+		this.value = value;
+		this.broadcast();		
 	}
-
-	static resolve(value) {
-		return new Promise((resolve) => resolve(value))
+	
+	reject(reason) {		
+		if (this.state != PENDING) return;			
+		this.state = REJECTED;
+		this.value = reason;
+		this.broadcast();		
 	}
-
-	static reject(value) {
-		return new Promise((resolve, reject) => reject(value))
-	}	
+	
+	then(onFulfilled, onRejected) {
+		//console.log("KPromise Then");
+		 var consumer = new KPromise(function () {});
+		// 2.2.1.1 ignore onFulfilled if not a function
+		consumer.onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : null;
+		// 2.2.1.2 ignore onRejected if not a function
+		consumer.onRejected = typeof onRejected === 'function' ? onRejected : null;
+		// 2.2.6.1, 2.2.6.2: .then() may be called multiple times on the same promise
+		this.consumers.push(consumer);
+		// It might be that the promise was already resolved... 
+		this.broadcast();
+		// 2.2.7: .then() must return a promise
+		return consumer;
+	}
+	
+	broadcast() {
+		var promise = this;
+		// 2.2.2.1, 2.2.2.2, 2.2.3.1, 2.2.3.2 called after promise is resolved
+		if (this.state === PENDING) return;
+		// 2.2.6.1, 2.2.6.2 all respective callbacks must execute
+		var callbackName = this.state == FULFILLED ? 'onFulfilled' : 'onRejected';
+		var resolver = this.state == FULFILLED ? 'resolve' : 'reject';
+		// 2.2.4 onFulfilled/onRejected must be called asynchronously
+		setTimeout(function() {
+			// 2.2.6.1, 2.2.6.2 traverse in order, 2.2.2.3, 2.2.3.3 called only once
+			promise.consumers.splice(0).forEach(function(consumer) {
+				try {
+					var callback = consumer[callbackName];
+					// 2.2.1.1, 2.2.1.2 ignore callback if not a function, else
+					// 2.2.5 call callback as plain function without context
+					if (callback) {
+						// 2.2.7.1. execute the Promise Resolution Procedure:
+						consumer.resolve(callback(promise.value)); 
+					} else {
+						// 2.2.7.3 resolve in same way as current promise
+						consumer[resolver](promise.value);
+					}
+				} catch (e) {
+					// 2.2.7.2
+					consumer.reject(e);
+				};
+			})
+		});
+	};
+	
+	// The Promise Resolution Procedure: will treat values that are thenables/promises
+	// and will eventually call either fulfill or reject/throw.
+	resolve(x) {
+		var wasCalled, then;
+		// 2.3.1
+		if (this === x) {
+			throw new TypeError('Circular reference: promise value is promise itself');
+		}
+		// 2.3.2
+		if (x instanceof KPromise) {
+			// 2.3.2.1, 2.3.2.2, 2.3.2.3
+			x.then(this.resolve.bind(this), this.reject.bind(this));
+		} else if (x === Object(x)) { // 2.3.3
+			try {
+				// 2.3.3.1
+				then = x.then;
+				if (typeof then === 'function') {
+					// 2.3.3.3
+					then.call(x, function resolve(y) {
+						// 2.3.3.3.3 don't allow multiple calls
+						if (wasCalled) return;
+						wasCalled = true;
+						// 2.3.3.3.1 recurse
+						this.resolve(y);
+					}.bind(this), function reject(reasonY) {
+						// 2.3.3.3.3 don't allow multiple calls
+						if (wasCalled) return;
+						wasCalled = true;
+						// 2.3.3.3.2
+						this.reject(reasonY);
+					}.bind(this));
+				} else {
+					// 2.3.3.4
+					this.fulfill(x);
+				}
+			} catch(e) {
+				// 2.3.3.3.4.1 ignore if call was made
+				if (wasCalled) return;
+				// 2.3.3.2 or 2.3.3.3.4.2
+				this.reject(e);
+			}
+		} else {
+			// 2.3.4
+			this.fulfill(x);
+		}
+	}
 }
