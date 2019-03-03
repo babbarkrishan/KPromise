@@ -1,9 +1,11 @@
+'use strict';
 const PENDING = 1
 const FULFILLED = 2
 const REJECTED = 3
 
 module.exports = class KPromise {
 	constructor(executor) {
+		//console.log("Executor: " + executor);
 		if (typeof executor !== 'function') {
 			throw new Error('Executor must be a function');
 		}
@@ -25,6 +27,7 @@ module.exports = class KPromise {
 	}
 
 	fulfill(value) {		
+		//console.log("Fulfilled");
 		if (this.state != PENDING) return;
 		this.state = FULFILLED;
 		this.value = value;
@@ -32,6 +35,7 @@ module.exports = class KPromise {
 	}
 	
 	reject(reason) {		
+		//console.log("reject: " + reason);
 		if (this.state != PENDING) return;			
 		this.state = REJECTED;
 		this.value = reason;
@@ -39,6 +43,8 @@ module.exports = class KPromise {
 	}
 	
 	then(onFulfilled, onRejected) {
+		//console.log("Then: "  + onFulfilled);
+		//console.log("Then: "  + onRejected);
 		//console.log("KPromise Then");
 		 var consumer = new KPromise(function () {});
 		// 2.2.1.1 ignore onFulfilled if not a function
@@ -54,6 +60,7 @@ module.exports = class KPromise {
 	}
 	
 	broadcast() {
+		//console.log("BroadCast");
 		var promise = this;
 		// 2.2.2.1, 2.2.2.2, 2.2.3.1, 2.2.3.2 called after promise is resolved
 		if (this.state === PENDING) return;
@@ -65,7 +72,10 @@ module.exports = class KPromise {
 			// 2.2.6.1, 2.2.6.2 traverse in order, 2.2.2.3, 2.2.3.3 called only once
 			promise.consumers.splice(0).forEach(function(consumer) {
 				try {
+					//console.log("Slice");
 					var callback = consumer[callbackName];
+					//console.log("callback: " + callback);
+					//console.log("promise.value: " + promise.value);
 					// 2.2.1.1, 2.2.1.2 ignore callback if not a function, else
 					// 2.2.5 call callback as plain function without context
 					if (callback) {
@@ -86,6 +96,7 @@ module.exports = class KPromise {
 	// The Promise Resolution Procedure: will treat values that are thenables/promises
 	// and will eventually call either fulfill or reject/throw.
 	resolve(x) {
+		//console.log("Resolve: " + x);
 		var wasCalled, then;
 		// 2.3.1
 		if (this === x) {
