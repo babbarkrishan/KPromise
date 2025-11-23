@@ -2,7 +2,7 @@
 Promise Implementation as per spec https://github.com/promises-aplus/promises-spec
 
 #Objectives
-Created a promise implementation according to Promises/A+ spec which should pass the Promises/A+ Compliance Test Suite. Language used is Javascript (Class Based) and ran on Node.JS.
+Created a promise implementation according to Promises/A+ spec which should pass the Promises/A+ Compliance Test Suite. Language used is Javascript (Class Based) and ran on Node.
 
 #Environment 
 I used following setup
