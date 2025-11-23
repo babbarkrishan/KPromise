@@ -48,7 +48,6 @@ For me following was the result
 
 #Assumptions
 - Node and NPM already installed and running
-
 #References
 - https://stackoverflow.com/questions/23772801/basic-javascript-promise-implementation-attempt/
 - https://gist.github.com/ronkot/5ca27289a3795651f19f78c2b1f7ab16
