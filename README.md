@@ -2,7 +2,7 @@
 Promise Implementation as per spec https://github.com/promises-aplus/promises-spec
 
 #Objectives
-Created a promise implementation according to Promises/A+ spec which should pass the Promises/A+ Compliance Test Suite. Language used is Javascript (Class Based) and ran on Node.
+Created a promise implementation according to Promises/A+ spec which should pass the Promises/A+ Compliance Test Suite. Language used is Javascript (Class Based) and ran on Node.JS.
 
 #Environment 
 I used following setup
@@ -41,6 +41,7 @@ To install test suite, run following command in command prompt.
 - npm install promises-aplus-tests -g
 
 Then run the test cases using following command
+
 - promises-aplus-tests KPromise.js
 
 For me following was the result
